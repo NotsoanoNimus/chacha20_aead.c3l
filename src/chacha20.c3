@@ -35,6 +35,10 @@ struct ChaCha20
 }
 
 
+faultdef
+	OUT_OF_RESOURCES, INVALID_KEY_SIZE, INVALID_IV_SIZE, INVALID_BUFFER_SIZE;
+
+
 const char[] MAGIC = "expand 32-byte k";
 
 
@@ -128,4 +132,63 @@ fn void ChaCha20.xor(&self, char[] data)
 		data[i] ^= keystream8[self.position];
 		self.position++;
 	}
+}
+
+
+fn void? transform_data(char[] data, char[] key, char[] iv, uint counter) @local
+{
+	switch {
+		case 0 == data.len: return;
+		case 12 != iv.len: return INVALID_IV_SIZE?;
+		case 32 != key.len: return INVALID_KEY_SIZE?;
+	}
+
+	ChaCha20 c @noinit;
+	c.init(key, iv, counter);
+	c.xor(data);
+}
+
+fn void? encrypt_mut(char[] data, char[] key, char[] iv, uint counter = 1) => transform_data(data, key, iv, counter);
+fn void? decrypt_mut(char[] data, char[] key, char[] iv, uint counter = 1) => transform_data(data, key, iv, counter);
+
+
+// Cloning transformed data requires the allocation of a new buffer of equal or greater size. We don't want a STDLIB dependency here.
+alias FnHeapAllocate = fn void*(usz);
+
+fn char[]? transform_clone(char[] data, char[] key, char[] iv, FnHeapAllocate allocator_func, uint counter = 1) @local
+{
+	if (!data.len) return {};
+
+	void* pool = allocator_func(data.len);
+	if (null == pool) return OUT_OF_RESOURCES?;
+
+	for (usz i = 0; i < data.len; ++i) ((char*)pool)[i] = data[i];   // poor man's [unoptimized] memcpy
+	char[] pool_data = ((char*)pool)[:data.len];
+
+	if (catch err = transform_data(pool_data, key, iv, counter)) return err?;
+
+	return pool_data;
+}
+
+fn char[]? encrypt_clone(char[] data, char[] key, char[] iv, FnHeapAllocate allocator_func, uint counter = 1)
+	=> transform_clone(data, key, iv, allocator_func, counter);
+
+fn char[]? decrypt_clone(char[] data, char[] key, char[] iv, FnHeapAllocate allocator_func, uint counter = 1)
+	=> transform_clone(data, key, iv, allocator_func, counter);
+
+
+fn void? encrypt_into(char[] data, char[] into, char[] key, char[] iv, uint counter = 1)
+{
+	if (into.len < data.len) return INVALID_BUFFER_SIZE?;
+	for (usz i = 0; i < data.len; ++i) into[i] = data[i];   // poor man's [unoptimized] memcpy
+
+	return transform_data(into, key, iv, counter);
+}
+
+fn void? decrypt_into(char[] data, char[] into, char[] key, char[] iv, uint counter = 1)
+{
+	if (into.len < data.len) return INVALID_BUFFER_SIZE?;
+	for (usz i = 0; i < data.len; ++i) into[i] = data[i];   // poor man's [unoptimized] memcpy
+
+	return transform_data(into, key, iv, counter);
 }
