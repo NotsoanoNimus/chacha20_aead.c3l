@@ -22,6 +22,13 @@
 module chacha20;
 
 
+const BLOCK_SIZE = 64;
+const KEY_SIZE = 32;
+const IV_SIZE = 12;
+
+const char[] MAGIC = "expand 32-byte k";
+
+
 struct ChaCha20
 {
     uint[16] key_stream;
@@ -37,9 +44,6 @@ struct ChaCha20
 
 faultdef
 	OUT_OF_RESOURCES, INVALID_KEY_SIZE, INVALID_IV_SIZE, INVALID_BUFFER_SIZE;
-
-
-const char[] MAGIC = "expand 32-byte k";
 
 
 macro uint rot(uint x, int n) @local => (x << n) | (x >> (32 - n));
