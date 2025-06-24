@@ -31,7 +31,6 @@ const KEY_SIZE = 32;
 
 struct Poly1305
 {
-    ulong x;
     ulong[3]        h;
     ulong[2]        r;
     uint[4]         nonce;
